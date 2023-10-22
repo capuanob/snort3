@@ -18,8 +18,9 @@
 #Build libdaq
 cd libdaq
 ./bootstrap
-./configure
-make -j $(nproc) install
+./configure --prefix=/usr/local
+make
+make install
 
 # Build snort3
 ./configure_cmake.sh
