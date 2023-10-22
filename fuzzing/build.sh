@@ -15,6 +15,13 @@
 #
 ################################################################################
 
+#Build libdaq
+cd libdaq
+./bootstrap
+./configure
+make -j $(nproc) install
+
+# Build snort3
 ./configure_cmake.sh
 cd build
 make -j $(nproc) install
