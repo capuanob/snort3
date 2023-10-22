@@ -15,6 +15,6 @@
 #
 ################################################################################
 
-./configure_cmake.sh --prefix=$OUT
-mkdir build && cd build
-make -j$(nproc) install
+./configure_cmake.sh
+cd build
+make -j $(nproc) install
