@@ -265,7 +265,12 @@ void TcpReassembler::dup_reassembly_segment(
 
 bool TcpReassembler::add_alert(TcpReassemblerState& trs, uint32_t gid, uint32_t sid)
 {
-    trs.alerts.emplace_back(gid, sid, 0, 0, 0);
+    assert(trs.alerts.size() <=
+        (uint32_t)(get_ips_policy()->rules_loaded + get_ips_policy()->rules_shared));
+
+    if (!this->check_alerted(trs, gid, sid))
+        trs.alerts.emplace_back(gid, sid);
+
     return true;
 }
 
@@ -300,7 +305,7 @@ void TcpReassembler::purge_alerts(TcpReassemblerState& trs)
     Flow* flow = trs.sos.session->flow;
 
     for ( auto& alert : trs.alerts )
-        Stream::log_extra_data(flow, trs.xtradata_mask, alert.event_id, alert.event_second);
+        Stream::log_extra_data(flow, trs.xtradata_mask, alert);
 
     if ( !flow->is_suspended() )
         trs.alerts.clear();
@@ -922,6 +927,7 @@ int32_t TcpReassembler::scan_data_pre_ack(TcpReassemblerState& trs, uint32_t* fl
         if (flush_pt >= 0)
         {
             trs.sos.seglist.cur_sseg = tsn;
+            update_rcv_nxt(trs, *tsn);
             return flush_pt;
         }
 
@@ -936,6 +942,7 @@ int32_t TcpReassembler::scan_data_pre_ack(TcpReassemblerState& trs, uint32_t* fl
     }
 
     trs.sos.seglist.cur_sseg = tsn;
+    update_rcv_nxt(trs, *tsn);
     return ret_val;
 }
 
@@ -972,6 +979,26 @@ void TcpReassembler::fallback(TcpStreamTracker& tracker, bool server_side)
     }
 }
 
+bool TcpReassembler::segment_within_seglist_window(TcpReassemblerState& trs, TcpSegmentDescriptor& tsd)
+{
+    uint32_t start, end = (trs.sos.seglist.tail->i_seq + trs.sos.seglist.tail->i_len);
+
+    if ( SEQ_LT(trs.sos.seglist_base_seq, trs.sos.seglist.head->i_seq) )
+        start = trs.sos.seglist_base_seq;
+    else
+        start = trs.sos.seglist.head->i_seq;
+
+    // Left side
+    if ( SEQ_LEQ(tsd.get_end_seq(), start) )
+        return false;
+
+    // Right side
+    if ( SEQ_GEQ(tsd.get_seq(), end) )
+        return false;
+
+    return true;
+}
+
 void TcpReassembler::check_first_segment_hole(TcpReassemblerState& trs)
 {
     if ( SEQ_LT(trs.sos.seglist_base_seq, trs.sos.seglist.head->c_seq)
@@ -981,6 +1008,16 @@ void TcpReassembler::check_first_segment_hole(TcpReassemblerState& trs)
             trs.tracker->rcv_nxt = trs.tracker->r_win_base;
             trs.paf_state.paf = StreamSplitter::START;
         }
+}
+
+void TcpReassembler::update_rcv_nxt(TcpReassemblerState& trs, TcpSegmentNode& tsn)
+{
+    uint32_t temp = (tsn.i_seq + tsn.i_len);
+
+    if (!trs.tracker->ooo_packet_seen and SEQ_LT(trs.tracker->rcv_nxt, temp))
+        trs.tracker->ooo_packet_seen = true;
+
+    trs.tracker->rcv_nxt = temp;
 }
 
 bool TcpReassembler::has_seglist_hole(TcpReassemblerState& trs, TcpSegmentNode& tsn, PAF_State& ps,

@@ -118,6 +118,12 @@ static const Parameter main_log_command_param[] =
     { nullptr, Parameter::PT_MAX, nullptr, nullptr, nullptr }
 };
 
+static const Parameter reset_stat_param[] =
+{
+	{ "type", Parameter::PT_STRING, nullptr, nullptr, "possible type can be: daq|module|appid|file_id|snort|ha|all." },
+	{ nullptr, Parameter::PT_MAX, nullptr, nullptr, nullptr }
+};
+
 static const Command snort_cmds[] =
 {
     { "set_watchdog_params", main_set_watchdog_params, s_watchdog, "set watchdog parameters" },
@@ -128,7 +134,8 @@ static const Command snort_cmds[] =
 
     { "dump_stats", main_dump_stats, nullptr, "show summary statistics" },
     { "dump_heap_stats", main_dump_heap_stats, nullptr, "show heap statistics" },
-    { "reset_stats", main_reset_stats, nullptr, "clear summary statistics" },
+    { "reset_stats", main_reset_stats, reset_stat_param, "clear summary statistics. "
+      "Type can be: daq|module|appid|file_id|snort|ha|all. reset_stats() without a parameter clears all statistics."},
     { "rotate_stats", main_rotate_stats, nullptr, "roll perfmonitor log files" },
     { "reload_config", main_reload_config, s_reload_w_path, "load new configuration" },
     { "reload_policy", main_reload_policy, s_reload, "reload part or all of the default policy" },
@@ -140,14 +147,14 @@ static const Command snort_cmds[] =
     // FIXIT-M rewrite trough to permit updates on the fly
     //{ "process", main_process, nullptr, "process given pcap" },
 
-    { "pause", main_pause, nullptr, "suspend packet processing" },
+    { "pause", main_pause, nullptr, "suspend packet processing", true },
 
     { "resume", main_resume, s_pktnum, "continue packet processing. "
-      "If number of packets is specified, will resume for n packets and pause" },
+      "If number of packets is specified, will resume for n packets and pause", true },
 
-    { "detach", main_detach, nullptr, "detach from control shell (without shutting down)" },
-    { "quit", main_quit, nullptr, "shutdown and dump-stats" },
-    { "help", main_help, nullptr, "this output" },
+    { "detach", main_detach, nullptr, "detach from control shell (without shutting down)", true },
+    { "quit", main_quit, nullptr, "shutdown and dump-stats", true },
+    { "help", main_help, nullptr, "this output", true },
 
     { nullptr, nullptr, nullptr, nullptr }
 };

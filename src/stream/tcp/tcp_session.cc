@@ -112,6 +112,7 @@ bool TcpSession::setup(Packet*)
 
     tcp_config = get_tcp_cfg(flow->ssn_server);
     flow->set_default_session_timeout(tcp_config->session_timeout, false);
+    flow->set_idle_timeout(tcp_config->embryonic_timeout);
     set_os_policy();
 
     SESSION_STATS_ADD(tcpStats)
@@ -170,6 +171,9 @@ void TcpSession::clear_session(bool free_flow_data, bool flush_segments, bool re
     lws_init = false;
     tcp_init = false;
     tcpStats.released++;
+
+    client.ooo_packet_seen = false;
+    server.ooo_packet_seen = false;
 
     if ( flush_segments )
     {
@@ -346,6 +350,9 @@ bool TcpSession::flow_exceeds_config_thresholds(TcpSegmentDescriptor& tsd)
                     (const_cast<tcp::TCPHdr*>(tsd.get_pkt()->ptrs.tcph))->set_seq(listener->max_queue_seq_nxt);
             }
 
+            if( listener->reassembler.segment_within_seglist_window(tsd) )
+                return false;
+
             if ( inline_mode || listener->normalizer.get_trim_win() == NORM_MODE_ON)
             {
                 tsd.get_pkt()->active->set_drop_reason("stream");
@@ -377,6 +384,9 @@ bool TcpSession::flow_exceeds_config_thresholds(TcpSegmentDescriptor& tsd)
                 else
                     (const_cast<tcp::TCPHdr*>(tsd.get_pkt()->ptrs.tcph))->set_seq(listener->max_queue_seq_nxt);
             }
+
+            if( listener->reassembler.segment_within_seglist_window(tsd) )
+                return false;
 
             if ( inline_mode || listener->normalizer.get_trim_win() == NORM_MODE_ON)
             {
@@ -448,7 +458,7 @@ void TcpSession::update_stream_order(const TcpSegmentDescriptor& tsd, bool align
             if ( !(flow->get_session_flags() & SSNFLAG_STREAM_ORDER_BAD) )
                 flow->set_session_flags(SSNFLAG_STREAM_ORDER_BAD);
             tsd.set_packet_flags(PKT_STREAM_ORDER_BAD);
-         }
+        }
     }
 }
 
@@ -468,15 +478,16 @@ int TcpSession::process_tcp_data(TcpSegmentDescriptor& tsd)
         if ( tcp_config->policy != StreamPolicy::OS_PROXY
             and listener->normalizer.get_stream_window(tsd) == 0 )
         {
-            if (tsd.get_len() == ZERO_WIN_PROBE_LEN)
-            {
-                tcpStats.zero_win_probes++;
-                listener->normalizer.set_zwp_seq(seq);
-            }
-            else
+            if ( !listener->normalizer.data_inside_window(tsd) or !listener->get_iss() )
             {
                 listener->normalizer.trim_win_payload(tsd);
                 return STREAM_UNALIGNED;
+            }
+            else
+            {
+                tcpStats.zero_win_probes++;
+                listener->normalizer.set_zwp_seq(seq);
+                listener->normalizer.trim_win_payload(tsd, MAX_ZERO_WIN_PROBE_LEN, tsd.is_nap_policy_inline());
             }
         }
 
@@ -486,7 +497,7 @@ int TcpSession::process_tcp_data(TcpSegmentDescriptor& tsd)
 
         if ( tsd.is_data_segment() )
         {
-            update_stream_order(tsd, true);
+            update_stream_order(tsd, !listener->ooo_packet_seen);
             process_tcp_stream(tsd);
             return STREAM_ALIGNED;
         }
@@ -503,8 +514,12 @@ int TcpSession::process_tcp_data(TcpSegmentDescriptor& tsd)
         if ( tcp_config->policy != StreamPolicy::OS_PROXY
             and listener->normalizer.get_stream_window(tsd) == 0 )
         {
-            if (tsd.get_len() == ZERO_WIN_PROBE_LEN)
+            if ( SEQ_EQ(seq, listener->normalizer.get_zwp_seq()) )
+            {
                 tcpStats.zero_win_probes++;
+                listener->normalizer.trim_win_payload(tsd, MAX_ZERO_WIN_PROBE_LEN, tsd.is_nap_policy_inline());
+                return STREAM_UNALIGNED;
+            }
 
             listener->normalizer.trim_win_payload(tsd);
             return STREAM_UNALIGNED;

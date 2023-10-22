@@ -117,6 +117,9 @@ public:
     const char* get_action_string() const
     { return act_str[active_action][active_status]; }
 
+    const char* get_delayed_action_string() const
+    { return act_str[delayed_active_action][active_status]; }
+
     void update_status(const Packet*, bool force = false);
 
     void drop_packet(const Packet*, bool force = false);
@@ -191,6 +194,9 @@ public:
 
     bool get_tunnel_bypass() const
     { return active_tunnel_bypass > 0; }
+
+    ActiveActionType get_delayed_action() const
+    { return delayed_active_action; }
 
     void set_delayed_action(ActiveActionType, bool force = false);
     void set_delayed_action(ActiveActionType, ActiveAction* act, bool force = false);
