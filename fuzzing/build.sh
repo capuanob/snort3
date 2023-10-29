@@ -27,6 +27,7 @@ make -j $(nproc)
 make install
 
 # Build snort3
+cd ../snort3
 ./configure_cmake.sh
 cd build
 make -j $(nproc) install
