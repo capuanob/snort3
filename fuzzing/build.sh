@@ -15,11 +15,12 @@
 #
 ################################################################################
 
+
 # Patch to use lc++ instead of lstdc++ to resolve linker errors
+cd libdaq
 sed -i 's/lstdc++/lc++/g' configure.ac
 
 #Build libdaq
-cd libdaq
 ./bootstrap
 LDFLAGS="-lm" ./configure
 make -j $(nproc)
