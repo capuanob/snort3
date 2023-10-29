@@ -17,6 +17,8 @@
 
 #Build libdaq
 cd libdaq
+echo "$CC"
+echo "$CXX"
 ./bootstrap
 ./configure --prefix=/usr/local
 make
