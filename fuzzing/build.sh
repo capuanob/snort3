@@ -23,11 +23,10 @@ sed -i 's/lstdc++/lc++/g' configure.ac
 #Build libdaq
 ./bootstrap
 LDFLAGS="-lm" ./configure
-make -j $(nproc)
-make install
+make install -j $(nproc)
 
 # Build snort3
 cd ../snort3
 ./configure_cmake.sh
 cd build
-make -j $(nproc) install
+make install -j $(nproc)
