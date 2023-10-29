@@ -15,13 +15,14 @@
 #
 ################################################################################
 
+# Patch to use lc++ instead of lstdc++ to resolve linker errors
+sed -i 's/lstdc++/lc++/g' configure.ac
+
 #Build libdaq
 cd libdaq
-echo "$CC"
-echo "$CXX"
 ./bootstrap
-./configure --prefix=/usr/local
-make
+LDFLAGS="-lm" ./configure
+make -j $(nproc)
 make install
 
 # Build snort3
